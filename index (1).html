@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Big Five Check-In</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+html{color-scheme:light}body{margin:0}
+/* Layout: one column. 20 statements with large 1-5 buttons, then a results page with one bar per trait. Gold is the only accent. */
+:root{
+  --bg:#f6f7f9; --card:#ffffff; --fg:#1b2230; --muted:#5a6475; --line:#d9dde5; --accent:#f2b300; --accent-fg:#1b2230; --bar:#2a5bd7; --track:#e6e9f0;
+  --display:'Bricolage Grotesque','Trebuchet MS',sans-serif; --body:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#12161f; --card:#1b2130; --fg:#eef1f6; --muted:#a2acbe; --line:#2d3649; --bar:#6f9bff; --track:#2d3649; color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#12161f; --card:#1b2130; --fg:#eef1f6; --muted:#a2acbe; --line:#2d3649; --bar:#6f9bff; --track:#2d3649; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font:16px/1.5 var(--body);padding-block:20px 56px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+main{max-width:720px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+h1{font:700 clamp(28px,6vw,38px)/1.1 var(--display);margin:0;text-wrap:balance}
+h2{font:600 20px/1.2 var(--display);margin:0}
+p{margin:0}
+.sub{color:var(--muted);max-width:60ch}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:12px}
+.label{font:600 12px var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.prog{position:sticky;top:env(safe-area-inset-top,0px);background:var(--bg);padding:8px 0;z-index:5;display:flex;flex-direction:column;gap:4px}
+.track{height:8px;background:var(--track);border-radius:4px;overflow:hidden}
+.fill{height:100%;background:var(--accent);width:0;transition:width .2s}
+.stmt{font-weight:600}
+.scale{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.scale label{position:relative}
+.scale input{position:absolute;opacity:0;inset:0;cursor:pointer;margin:0}
+.scale span{display:flex;align-items:center;justify-content:center;height:48px;border:1.5px solid var(--fg);border-radius:8px;font-weight:600;font-size:18px}
+.scale input:checked+span{background:var(--fg);color:var(--bg)}
+.scale input:focus-visible+span{outline:3px solid var(--bar);outline-offset:2px}
+.ends{display:flex;justify-content:space-between;font-size:13px;color:var(--muted)}
+.btn{font:600 16px var(--body);border:1.5px solid var(--fg);background:transparent;color:var(--fg);padding:11px 18px;border-radius:8px;cursor:pointer}
+.btn.main{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn:focus-visible{outline:3px solid var(--bar);outline-offset:2px}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.trait{display:flex;flex-direction:column;gap:6px;padding-block:10px;border-bottom:1px solid var(--line)}
+.trait:last-child{border-bottom:0}
+.thead{display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap}
+.tname{font:600 18px var(--display)}
+.score{font-variant-numeric:tabular-nums;color:var(--muted);font-size:14px}
+.bar{height:14px;background:var(--track);border-radius:7px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--bar);border-radius:7px}
+.trait.top .bar i{background:var(--accent)}
+.trait.top .tname::after{content:" (your highest)";font:500 13px var(--body);color:var(--muted)}
+.callout{border-left:4px solid var(--accent);padding:2px 0 2px 14px}
+.small{font-size:14px;color:var(--muted)}
+[hidden]{display:none!important}
+@media (prefers-reduced-motion: reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Big Five Check-In</h1>
+    <p class="sub" id="intro">Twenty short statements, about three minutes. Rate how well each one describes you as you usually are, not as you wish to be. There are no right answers. Nothing you enter is saved or sent anywhere.</p>
+  </header>
+
+  <section id="quiz" class="card-list" style="display:flex;flex-direction:column;gap:12px">
+    <div class="prog"><div class="small" id="pcount">0 of 20 answered</div><div class="track"><div class="fill" id="pfill"></div></div></div>
+    <div id="items" style="display:flex;flex-direction:column;gap:12px"></div>
+    <div class="row"><button class="btn main" id="go" disabled>See my results</button><span class="small" id="hint">Answer all 20 to continue.</span></div>
+  </section>
+
+  <section id="results" hidden>
+    <div class="card" style="gap:6px">
+      <div class="label">Your results</div>
+      <div id="rows"></div>
+    </div>
+    <div class="card callout-card" id="group"></div>
+    <div class="card">
+      <h2>How to read this</h2>
+      <p class="small">Each trait is scored from 4 to 20. Scores here are labeled lower (4 to 9), middle (10 to 14), or higher (15 to 20) on this scale. They are not compared with a national sample, so treat them as a starting point for discussion. This is a short learning tool, not a hiring test. It describes tendencies, not ability or worth, and no score is the best one.</p>
+      <div class="row"><button class="btn" id="copy">Copy my scores</button><button class="btn" id="again">Start over</button></div>
+      <span class="small" id="copied" role="status"></span>
+    </div>
+  </section>
+  <footer class="small">Items are from the Mini-IPIP, a 20-item short form drawn from the International Personality Item Pool (Donnellan, Oswald, Baird and Lucas, 2006). The item pool is in the public domain: ipip.ori.org.</footer>
+</main>
+
+<script>
+(function(){
+/* To use different statements, edit this list. t = trait (O, C, E, A, N), r = true if the item is reverse scored. */
+var ITEMS=[
+ {s:'I am the life of the party.',t:'E',r:false},
+ {s:'I sympathize with others’ feelings.',t:'A',r:false},
+ {s:'I get chores done right away.',t:'C',r:false},
+ {s:'I have frequent mood swings.',t:'N',r:false},
+ {s:'I have a vivid imagination.',t:'O',r:false},
+ {s:'I don’t talk a lot.',t:'E',r:true},
+ {s:'I am not interested in other people’s problems.',t:'A',r:true},
+ {s:'I often forget to put things back in their proper place.',t:'C',r:true},
+ {s:'I am relaxed most of the time.',t:'N',r:true},
+ {s:'I am not interested in abstract ideas.',t:'O',r:true},
+ {s:'I talk to a lot of different people at parties.',t:'E',r:false},
+ {s:'I feel others’ emotions.',t:'A',r:false},
+ {s:'I like order.',t:'C',r:false},
+ {s:'I get upset easily.',t:'N',r:false},
+ {s:'I have difficulty understanding abstract ideas.',t:'O',r:true},
+ {s:'I keep in the background.',t:'E',r:true},
+ {s:'I am not really interested in others.',t:'A',r:true},
+ {s:'I make a mess of things.',t:'C',r:true},
+ {s:'I seldom feel blue.',t:'N',r:true},
+ {s:'I do not have a good imagination.',t:'O',r:true}
+];
+var TRAITS={
+ O:{name:'Openness',desc:'Wide range of interests, imaginative, fascinated by novelty.',work:'Strength at work: innovation and strategy. People high in openness do well in training, and they turn new ideas into new strategies or change.',risk:'Watch for: chasing ideas without finishing them.'},
+ C:{name:'Conscientiousness',desc:'Reliable, responsible, dependable, persistent.',work:'Strength at work: performance and reliability. In the chapter, conscientiousness predicted job performance in all five occupation groups studied.',risk:'Watch for: rigidity, or missing deadlines while perfecting details.'},
+ E:{name:'Extraversion',desc:'Sociable, talkative, assertive.',work:'Strength at work: influence and networking. Extraversion predicted performance in managerial and sales jobs.',risk:'Watch for: talking over others.'},
+ A:{name:'Agreeableness',desc:'Good-natured, cooperative, trusting.',work:'Strength at work: team cohesion and trust. Cooperative people help with mediation, reduce conflict, and build loyalty.',risk:'Watch for: avoiding hard decisions or hard conversations.'},
+ N:{name:'Neuroticism',desc:'Tense, nervous, insecure. The other end of this scale is emotional stability: calm and secure.',work:'Strength at work: risk mitigation and preparedness. A tendency to worry can lead to proactive planning, error-checking, and preventing major problems.',risk:'Watch for: stress that gets in the way of decisions.'}
+};
+var ORDER=['O','C','E','A','N'], ans=new Array(ITEMS.length).fill(0);
+var $=function(id){return document.getElementById(id)};
+
+var box=$('items');
+ITEMS.forEach(function(it,i){
+  var d=document.createElement('div');d.className='card';
+  d.innerHTML='<div class="label">Statement '+(i+1)+' of '+ITEMS.length+'</div><p class="stmt" id="q'+i+'">'+it.s+'</p>'
+   +'<div class="scale" role="radiogroup" aria-labelledby="q'+i+'">'+[1,2,3,4,5].map(function(v){return '<label><input type="radio" name="i'+i+'" value="'+v+'" aria-label="'+v+'"><span>'+v+'</span></label>'}).join('')+'</div>'
+   +'<div class="ends"><span>1 Strongly disagree</span><span>5 Strongly agree</span></div>';
+  d.addEventListener('change',function(e){ans[i]=+e.target.value;update()});
+  box.appendChild(d);
+});
+function update(){
+  var n=ans.filter(Boolean).length;
+  $('pcount').textContent=n+' of '+ITEMS.length+' answered';
+  $('pfill').style.width=(n/ITEMS.length*100)+'%';
+  $('go').disabled=n<ITEMS.length;
+  $('hint').textContent=n<ITEMS.length?'Answer all '+ITEMS.length+' to continue.':'';
+}
+function score(a){
+  var s={O:0,C:0,E:0,A:0,N:0};
+  ITEMS.forEach(function(it,i){s[it.t]+=it.r?6-a[i]:a[i]});
+  return s;
+}
+function band(v){return v<=9?'Lower':v<=14?'Middle':'Higher'}
+var lastText='';
+$('go').onclick=function(){
+  var s=score(ans), max=Math.max.apply(null,ORDER.map(function(k){return s[k]}));
+  var tops=ORDER.filter(function(k){return s[k]===max});
+  $('rows').innerHTML=ORDER.map(function(k){
+    var v=s[k], t=TRAITS[k];
+    return '<div class="trait'+(tops.indexOf(k)>-1?' top':'')+'"><div class="thead"><span class="tname">'+t.name+'</span><span class="score">'+v+' of 20 &middot; '+band(v)+'</span></div>'
+      +'<div class="bar" role="img" aria-label="'+t.name+' '+v+' out of 20"><i style="width:'+((v-4)/16*100)+'%"></i></div>'
+      +'<p class="small">'+t.desc+'</p></div>';
+  }).join('');
+  var g='<h2>Your group for Find Your Model</h2>';
+  if(tops.length===1){
+    var k=tops[0];
+    g+='<p>Your highest trait is <strong>'+TRAITS[k].name+'</strong>. Go to that group.</p><p class="small">'+TRAITS[k].work+' '+TRAITS[k].risk+'</p>';
+  } else {
+    g+='<p>You tied for highest: <strong>'+tops.map(function(k){return TRAITS[k].name}).join(' and ')+'</strong>. Pick the one that feels most like you.</p>';
+    g+=tops.map(function(k){return '<p class="small"><strong>'+TRAITS[k].name+'.</strong> '+TRAITS[k].work+' '+TRAITS[k].risk+'</p>'}).join('');
+  }
+  $('group').innerHTML=g;
+  lastText='My Big Five Check-In scores (4 to 20): '+ORDER.map(function(k){return TRAITS[k].name+' '+s[k]}).join(', ')+'.';
+  $('quiz').hidden=true;$('intro').hidden=true;$('results').hidden=false;window.scrollTo(0,0);
+};
+$('copy').onclick=function(){
+  function done(m){$('copied').textContent=m}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(lastText).then(function(){done('Copied.')},function(){done(lastText)})}
+  else done(lastText);
+};
+$('again').onclick=function(){
+  ans=new Array(ITEMS.length).fill(0);
+  Array.prototype.forEach.call(document.querySelectorAll('#items input'),function(i){i.checked=false});
+  update();$('results').hidden=true;$('quiz').hidden=false;$('intro').hidden=false;$('copied').textContent='';window.scrollTo(0,0);
+};
+window.__score=score; /* exposed for testing */
+update();
+})();
+</script>
+</body>
+</html>
